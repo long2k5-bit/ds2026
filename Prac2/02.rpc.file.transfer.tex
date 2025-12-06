@@ -1,0 +1,138 @@
+\documentclass{article}
+\usepackage{graphicx}
+\usepackage{listings}
+\usepackage{color}
+\usepackage{caption}   % <-- added so \captionof works
+
+\title{RPC File Transfer -- Practical Work 2}
+\author{Group 6 -- Distributed Systems}
+
+\begin{document}
+\maketitle
+
+\section{Introduction}
+
+This practical work extends the TCP file transfer system from Practical Work~1
+to a remote procedure call (RPC) based solution. Instead of sending raw bytes
+over a custom TCP protocol, the client now invokes RPC methods on a server
+to upload a file. We use Python's \texttt{xmlrpc.server} and
+\texttt{xmlrpc.client} libraries to implement the RPC service.
+
+\section{RPC Service Design}
+
+\subsection{Service Interface}
+
+The RPC server exposes a simple interface:
+
+\begin{itemize}
+    \item \texttt{upload\_file (name, data)}: receives a file name
+    (string) and file contents (binary) and stores the file on the server.
+\end{itemize}
+
+Files are sent using \texttt{xmlrpc.client.Binary} so that arbitrary
+binary data (text or binary files) can be transferred.
+
+\subsection{RPC Call Flow}
+
+Figure~\ref{fig:rpc-flow} shows the RPC call sequence from client to server.
+
+\begin{verbatim}
+Client (RPC stub)                        Server (RPC service)
+------------------                       ---------------------
+read local file              |
+wrap data as Binary          |
+call upload_file(name,data)  |  ---- XML-RPC request ----------->|
+                             |                                   |
+                             |        write file to disk         |
+                             |<-- XML-RPC response: "OK" --------|
+display server reply         |
+\end{verbatim}
+\captionof{figure}{RPC request--response flow for file upload.}
+\label{fig:rpc-flow}
+
+\section{System Organization}
+
+The system is organized into an RPC client and an RPC server, communicating
+over HTTP using XML-RPC. The underlying transport is TCP, but the details are
+handled by the RPC library instead of our own protocol.
+
+Figure~\ref{fig:system} shows the architecture.
+
+\begin{verbatim}
++------------------------+          HTTP / XML-RPC        +------------------------+
+|        Client          | <----------------------------> |         Server         |
+|------------------------|                                |------------------------|
+| - CLI interface        |                                | - XML-RPC dispatcher   |
+| - File reader          |                                | - upload_file handler  |
+| - XML-RPC stub         |                                | - File writer          |
++------------------------+                                +------------------------+
+\end{verbatim}
+\captionof{figure}{System organization of the RPC file transfer system.}
+\label{fig:system}
+
+\section{Implementation}
+
+\subsection{Server Code Snippet}
+
+The RPC server registers one method, \texttt{upload\_file}, which writes the
+received data to a file on disk.
+
+\begin{lstlisting}[language=Python]
+from xmlrpc.server import SimpleXMLRPCServer
+from xmlrpc.client import Binary
+
+HOST = "0.0.0.0"
+PORT = 8000
+
+def upload_file(name, data):
+    # data is of type xmlrpc.client.Binary
+    with open(name, "wb") as f:
+        f.write(data.data)
+    print(f"Received file: {name}")
+    return "OK"
+
+server = SimpleXMLRPCServer((HOST, PORT), allow_none=True)
+server.register_function(upload_file, "upload_file")
+
+print(f"RPC server listening on {HOST}:{PORT}")
+server.serve_forever()
+\end{lstlisting}
+
+\subsection{Client Code Snippet}
+
+The client reads a local file, wraps its contents in \texttt{Binary},
+and calls the remote \texttt{upload\_file} method.
+
+\begin{lstlisting}[language=Python]
+import os
+from xmlrpc.client import ServerProxy, Binary
+
+SERVER_URL = "http://127.0.0.1:8000/"
+FILENAME = "test.txt"
+
+filesize = os.path.getsize(FILENAME)
+print(f"Sending {FILENAME} ({filesize} bytes)")
+
+with open(FILENAME, "rb") as f:
+    data = f.read()
+
+proxy = ServerProxy(SERVER_URL, allow_none=True)
+result = proxy.upload_file(FILENAME, Binary(data))
+
+print("Server reply:", result)
+\end{lstlisting}
+
+This implementation reuses the general idea from the TCP solution (one client,
+one server, file stored on the server side) but delegates framing, encoding and
+transport details to the RPC library.
+
+\section{Conclusion}
+
+I upgraded our original TCP file transfer system to an RPC-based design using
+Python's XML-RPC facilities. The new solution simplifies protocol handling:
+the client only needs to call a remote method, while the library takes care
+of serialization, message framing and transport over TCP. The system correctly
+transfers both text and binary files and illustrates how RPC can be used to
+build higher-level distributed services on top of sockets.
+
+\end{document}
