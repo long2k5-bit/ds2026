@@ -4,7 +4,7 @@
 \usepackage{color}
 
 \title{TCP File Transfer – Practical Work 1}
-\author{Nguyen Hoang Long - Distributed Systems}
+\author{Distributed Systems}
 
 \begin{document}
 \maketitle
@@ -15,7 +15,7 @@ This practical work aims to develop a simple file transfer system using TCP/IP i
 
 \section{Protocol Design}
 
-Our protocol is based on a simple request–response model:
+My protocol is based on a simple request–response model:
 
 \begin{enumerate}
     \item Client connects to server.
@@ -26,7 +26,6 @@ Our protocol is based on a simple request–response model:
     \item Server stores the file and responds \texttt{OK}.
 \end{enumerate}
 
-Figure~\ref{fig:proto} illustrates the protocol flow.
 
 \begin{verbatim}
 Client                                   Server
@@ -42,7 +41,6 @@ Client                                   Server
 
 \section{System Organization}
 
-Figure~\ref{fig:system} shows the architecture.
 
 \begin{verbatim}
 +------------------+                +-------------------+
@@ -119,16 +117,8 @@ print(client.recv(1024).decode())
 client.close()
 \end{lstlisting}
 
-\section{Work Distribution}
-
-\begin{itemize}
-    \item Member A: Protocol design, server implementation
-    \item Member B: Client implementation, testing
-    \item Member C: LaTeX report, diagrams
-\end{itemize}
-
 \section{Conclusion}
 
-We successfully implemented a TCP file transfer system using one client and one server. The protocol works reliably for text and binary files. The system demonstrates basic distributed communication using sockets.
+I successfully implemented a TCP file transfer system using one client and one server. The protocol works reliably for text and binary files. The system demonstrates basic distributed communication using sockets.
 
 \end{document}
