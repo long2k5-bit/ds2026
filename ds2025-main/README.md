@@ -1,0 +1,14 @@
+USTH 2025: DISTRIBUTED SYSTEM
+=====================================================
+
+Students are expected to:
+* Fork this repository to your github account.
+* Push your commits regularly, with **PROPER** commit **MESSAGE**.
+
+
+Student Info
+=========================
+
+* Student Name: Nguyễn Hoàng Long
+* Student ID: 23BI14270
+* Student Group ID: 6 

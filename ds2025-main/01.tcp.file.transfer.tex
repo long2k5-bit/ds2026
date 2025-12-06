@@ -1,0 +1,134 @@
+\documentclass{article}
+\usepackage{graphicx}
+\usepackage{listings}
+\usepackage{color}
+
+\title{TCP File Transfer – Practical Work 1}
+\author{Nguyen Hoang Long - Distributed Systems}
+
+\begin{document}
+\maketitle
+
+\section{Introduction}
+
+This practical work aims to develop a simple file transfer system using TCP/IP in a command-line interface. The system includes one server and one client using sockets.
+
+\section{Protocol Design}
+
+Our protocol is based on a simple request–response model:
+
+\begin{enumerate}
+    \item Client connects to server.
+    \item Client sends filename.
+    \item Client sends file size.
+    \item Server replies \texttt{READY}.
+    \item Client sends file data in binary chunks.
+    \item Server stores the file and responds \texttt{OK}.
+\end{enumerate}
+
+Figure~\ref{fig:proto} illustrates the protocol flow.
+
+\begin{verbatim}
+Client                                   Server
+  |                                         |
+  | ---- Connect via TCP -----------------> |
+  | ---- Send filename -------------------> |
+  | ---- Send filesize -------------------> |
+  | <------------- READY ------------------ |
+  | ---- Send file data (chunks) ---------> |
+  | <----------------- OK ----------------- |
+  | ---- Close connection ----------------> |
+\end{verbatim}
+
+\section{System Organization}
+
+Figure~\ref{fig:system} shows the architecture.
+
+\begin{verbatim}
++------------------+                +-------------------+
+|      Client      |   TCP/IP       |       Server      |
+|------------------| <----------->  |-------------------|
+| - CLI interface  |                | - Listener socket |
+| - File reader    |                | - File writer     |
+| - TCP socket     |                | - TCP socket      |
++------------------+                +-------------------+
+\end{verbatim}
+
+\section{Implementation}
+
+\subsection{Server Code}
+
+\begin{lstlisting}[language=Python]
+import socket
+
+HOST = "0.0.0.0"
+PORT = 5001
+
+server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+server.bind((HOST, PORT))
+server.listen(1)
+
+conn, addr = server.accept()
+
+filename = conn.recv(1024).decode().strip()
+filesize = int(conn.recv(1024).decode().strip())
+
+conn.send(b"READY")
+
+with open(filename, "wb") as f:
+    received = 0
+    while received < filesize:
+        data = conn.recv(4096)
+        if not data:
+            break
+        f.write(data)
+        received += len(data)
+
+conn.send(b"OK")
+conn.close()
+\end{lstlisting}
+
+\subsection{Client Code}
+
+\begin{lstlisting}[language=Python]
+import socket
+import os
+
+HOST = "127.0.0.1"
+PORT = 5001
+
+filename = "test.txt"
+filesize = os.path.getsize(filename)
+
+client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+client.connect((HOST, PORT))
+
+client.send((filename + "\n").encode())
+client.send((str(filesize) + "\n").encode())
+
+if client.recv(1024).decode() != "READY":
+    client.close()
+
+with open(filename, "rb") as f:
+    data = f.read(4096)
+    while data:
+        client.send(data)
+        data = f.read(4096)
+
+print(client.recv(1024).decode())
+client.close()
+\end{lstlisting}
+
+\section{Work Distribution}
+
+\begin{itemize}
+    \item Member A: Protocol design, server implementation
+    \item Member B: Client implementation, testing
+    \item Member C: LaTeX report, diagrams
+\end{itemize}
+
+\section{Conclusion}
+
+We successfully implemented a TCP file transfer system using one client and one server. The protocol works reliably for text and binary files. The system demonstrates basic distributed communication using sockets.
+
+\end{document}
