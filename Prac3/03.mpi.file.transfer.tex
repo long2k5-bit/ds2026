@@ -1,0 +1,163 @@
+\documentclass{article}
+\usepackage{graphicx}
+\usepackage{listings}
+\usepackage{color}
+\usepackage{caption}
+
+\title{MPI File Transfer -- Practical Work 3}
+\author{Nguyen Hoang Long -- Distributed Systems}
+
+\begin{document}
+\maketitle
+
+\section{Introduction}
+
+This practical work extends the TCP file transfer system from Practical Work~1
+to a solution based on MPI (Message Passing Interface). Instead of using a
+client--server model over TCP sockets, we use an MPI communicator in which
+different ranks cooperate to transfer a file. In our design, rank~0 acts as
+the sender and rank~1 as the receiver.
+
+\section{Choice of MPI Implementation}
+
+We chose the \texttt{mpi4py} library on top of an existing MPI distribution
+(such as Open~MPI or MPICH) for the following reasons:
+
+\begin{itemize}
+    \item It allows us to keep using Python, reusing code and structure from
+          the TCP and RPC practical works.
+    \item \texttt{mpi4py} provides a high-level interface to standard MPI
+          primitives (\texttt{send}, \texttt{recv}, collective operations),
+          while still mapping directly to the underlying C MPI calls.
+    \item It is portable: the same code can be executed on laptops, clusters
+          or teaching labs as long as an MPI implementation and Python are
+          available.
+\end{itemize}
+
+\section{MPI Service Design}
+
+\subsection{Communication Model}
+
+We use a simple point-to-point communication pattern between two ranks:
+
+\begin{itemize}
+    \item Rank~0: reads a local file, then sends the file name, file size and
+          binary data to rank~1 via MPI.
+    \item Rank~1: receives the metadata and data from rank~0 and writes the
+          file to disk.
+\end{itemize}
+
+The data is sent in three messages so that the receiver can allocate and
+handle the file in a controlled way.
+
+\subsection{MPI Call Flow}
+
+Figure~\ref{fig:mpi-flow} shows the sequence of MPI calls used to transfer
+one file.
+
+\begin{verbatim}
+Rank 0 (sender)                             Rank 1 (receiver)
+----------------                             -----------------
+read file from disk            |
+get name and size              |
+                                |
+MPI_Send(name)      ----------> |  MPI_Recv(name)
+MPI_Send(size)      ----------> |  MPI_Recv(size)
+MPI_Send(data)      ----------> |  MPI_Recv(data)
+                                |
+print "file sent"               |  write data to output file
+                                |  print "file received"
+\end{verbatim}
+\captionof{figure}{MPI request--response flow for file transfer between
+rank~0 and rank~1.}
+\label{fig:mpi-flow}
+
+\section{System Organization}
+
+The system is organized as a single MPI program (SPMD model) launched with
+two processes. Both execute the same script but follow different code paths
+depending on their rank. Communication happens in the default communicator
+\texttt{MPI.COMM\_WORLD}.
+
+Figure~\ref{fig:system} shows the high-level architecture.
+
+\begin{verbatim}
++----------------------+           MPI.COMM_WORLD          +----------------------+
+|   Rank 0 (Sender)    | <-------------------------------> |  Rank 1 (Receiver)   |
+|----------------------|                                   |----------------------|
+| - Read local file    |                                   | - Receive metadata   |
+| - MPI_Send name      |                                   | - Receive file data  |
+| - MPI_Send size      |                                   | - Write file to disk |
+| - MPI_Send data      |                                   | - Report completion  |
++----------------------+                                   +----------------------+
+\end{verbatim}
+\captionof{figure}{System organization of the MPI file transfer system.}
+\label{fig:system}
+
+\section{Implementation}
+
+\subsection{MPI File Transfer Code Snippet}
+
+The following Python code (using \texttt{mpi4py}) shows the core logic of
+our MPI file transfer. The script is executed with two processes, for example:
+
+\begin{verbatim}
+mpirun -np 2 python mpi_file_transfer.py
+\end{verbatim}
+
+\begin{lstlisting}[language=Python]
+from mpi4py import MPI
+import os
+
+comm = MPI.COMM_WORLD
+rank = comm.Get_rank()
+size = comm.Get_size()
+
+FILENAME = "test.txt"
+
+if size < 2:
+    if rank == 0:
+        print("Please run with at least 2 MPI processes.")
+    raise SystemExit
+
+if rank == 0:
+    # Sender process
+    filesize = os.path.getsize(FILENAME)
+    with open(FILENAME, "rb") as f:
+        data = f.read()
+
+    # Send metadata and data to rank 1
+    comm.send(FILENAME, dest=1, tag=0)
+    comm.send(filesize,  dest=1, tag=1)
+    comm.send(data,      dest=1, tag=2)
+
+    print(f"Rank 0: sent {FILENAME} ({filesize} bytes) to rank 1.")
+
+elif rank == 1:
+    # Receiver process
+    name = comm.recv(source=0, tag=0)
+    filesize = comm.recv(source=0, tag=1)
+    data = comm.recv(source=0, tag=2)
+
+    out_name = "received_" + name
+    with open(out_name, "wb") as f:
+        f.write(data)
+
+    print(f"Rank 1: received {out_name} "
+          f"({len(data)} bytes, expected {filesize}).")
+\end{lstlisting}
+
+This implementation illustrates how MPI can be used to build a simple file
+transfer mechanism without explicit sockets. The MPI runtime takes care of
+process creation, message routing and low-level communication.
+
+\section{Conclusion}
+
+We implemented a basic MPI-based file transfer system by extending the
+previous TCP design to use \texttt{mpi4py}. By relying on MPI primitives
+(\texttt{send}/\texttt{recv}) and ranks, we can easily run the same code on
+different machines or cores. The practical demonstrates how MPI can be used
+for simple point-to-point services such as file transfer and provides a basis
+for more advanced distributed applications.
+
+\end{document}
